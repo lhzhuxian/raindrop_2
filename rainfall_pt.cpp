@@ -114,6 +114,7 @@ void * Simulation(void * _arg) {
   int total_slot = (arg->end - arg->start + 1) * dimension;
   while(CheckFlag()) {
     pthread_barrier_wait(&barrier);
+    
     if(arg->upper_lock) pthread_mutex_lock(arg->upper_lock);
     for(int i = arg->start; i <= arg->start + 1; ++i) {
       for(int j = 0; j < dimension; ++j) {
@@ -163,13 +164,13 @@ int main(int argc, char ** argv) {
     exit(-1);
   }
   thread_num = stoi(argv[1]);
-  if(thread_num < 2) {
-    cerr << "Thread num must larger than or equal to 2" << endl;
-    exit(-1);
-  }
   int time_step = stoi(argv[2]);
   absorp_rate = stof(argv[3]);
   dimension = stoi(argv[4]);
+  if(dimension / thread_num < 4) {
+    cerr << "Dimension must larger than 4 times thread numbers" << endl;
+    exit(-1);
+  }
   string elevation_file = argv[5];
   vector<vector<rain> > rain_map(dimension, vector<rain>(dimension));
   vector<vector<int> > lanscape(dimension, \
@@ -226,7 +227,9 @@ int main(int argc, char ** argv) {
   for(int i = 0; i < thread_num; ++i) {
     flag[i] = 1;
     lock[i] = PTHREAD_MUTEX_INITIALIZER;
-    if(i == 0) {
+    if(i == 0 && i == thread_num - 1) {
+      arg[i] = new p_rain(rain_map, NULL, NULL, start, end - 1, time_step, i);
+    } else if(i == 0) {
       arg[i] = new p_rain(rain_map, NULL, &lock[i], start, end, time_step, i);
     } else if (i == thread_num - 1) {
       arg[i] = new p_rain(rain_map, &lock[i], NULL, start, dimension - 1, time_step, i);
@@ -266,4 +269,11 @@ int main(int argc, char ** argv) {
     cout << endl;
   } //for i     
 
+  // memory management
+  delete[] flag;
+  delete[] lock;
+  for(int i = 0; i < thread_num; ++i) {
+    delete arg[i];
+  }
+  delete[] arg;
 }
